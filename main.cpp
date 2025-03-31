@@ -3,6 +3,7 @@
 #include <mutex>
 #include <vector>
 #include <chrono>
+#include <random>
 #include <condition_variable>
 
 using namespace std;
@@ -30,19 +31,31 @@ class Semaphore {
         int count;
 }; 
 
+int random_duration(int min_ms, int max_ms) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dist(min_ms, max_ms);
+    return dist(gen);
+}
 
 
-void philosopher(int id, mutex* forks, Semaphore& waiter, int num_philosophers) {
+void philosopher(int id, mutex* forks, Semaphore& waiter, int num_philosophers, mutex& print_mtx) {
     while(true) {
         // Thinking phase
-        cout << "Philosopher " << id << " is thinking." << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " is thinking." << endl;
+        }
 
         // TODO: Add a random sleep time to simulate thinking
-        this_thread::sleep_for(chrono::milliseconds(1000));
+        this_thread::sleep_for(chrono::milliseconds(random_duration(500,2000))); 
 
         // #### Want to eat / hungry phase ####
         waiter.wait();
-        cout << "Philosopher " << id << " is hungry. Asked for waiter for permission" << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " is hungry. Asked for waiter for permission" << endl;
+        }
 
         // Determine left and right forks ids
         int left_fork = id;
@@ -50,23 +63,39 @@ void philosopher(int id, mutex* forks, Semaphore& waiter, int num_philosophers) 
 
         // Picking up and locking the forks
         forks[left_fork].lock();
-        cout << "Philosopher " << id << " picked up left fork." << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " picked up left fork." << endl;
+        }
         forks[right_fork].lock();
-        cout << "Philosopher " << id << " picked up right fork." << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " picked up right fork." << endl;
+        }
 
         // #### Eating phase ####
-        cout << "Philosopher " << id << " is eating." << endl;
-        this_thread::sleep_for(chrono::milliseconds(1000)); // TODO: add a random sleep time 
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " is eating." << endl;
+        }
+        this_thread::sleep_for(chrono::milliseconds(random_duration(500,2000))); 
 
         // Put down the forks after eating
-        cout << "Philosopher " << id << " finished eating." << endl; 
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " finished eating." << endl; 
+        }
         forks[right_fork].unlock();
-        cout << "Philosopher " << id << " put down right fork." << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " put down right fork." << endl;
+        }
         forks[left_fork].unlock();
-        cout << "Philosopher " << id << " put down left fork." << endl;
+        {
+            lock_guard<mutex> lock(print_mtx);
+            cout << "Philosopher " << id << " put down left fork." << endl;
+        }
         
-
-
         waiter.signal();
 
     }
@@ -82,10 +111,12 @@ int main(){
     // so we prevent situation where all philosophers pick up their left fork and wait for the right one
     // The fork picking up and putting down is done in reverse order to avoid deadlock
 
+    mutex print_mtx; // print mutex to synchronize the output
+
     // Create philosopher threads
     vector<thread> philosophers;
     for (int i = 0; i < NUM_PHILOSOPHERS; ++i) {
-        philosophers.emplace_back(philosopher, i, forks, ref(waiter), NUM_PHILOSOPHERS);
+        philosophers.emplace_back(philosopher, i, forks, ref(waiter), NUM_PHILOSOPHERS, ref(print_mtx));
     }
 
     for (auto& philosopher : philosophers) {

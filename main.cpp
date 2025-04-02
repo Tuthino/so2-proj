@@ -110,18 +110,27 @@ void philosopher(int id, mutex* forks, Semaphore& waiter, int num_philosophers, 
 //TODO: Get an input here instead of hardcoded value
 
 int main(){
-    const size_t NUM_PHILOSOPHERS = 5;
-    mutex forks[NUM_PHILOSOPHERS];
+    size_t NUM_PHILOSOPHERS;
+    cout << "Enter number of philosophers: ";
+    while (!(cin >> NUM_PHILOSOPHERS)) {
+        cout << "Invalid input. Please enter a number: ";
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+
     Semaphore waiter(NUM_PHILOSOPHERS - 1); // Initialize semaphore with NUM_PHILOSOPHERS - 1
     // so we prevent situation where all philosophers pick up their left fork and wait for the right one
     // The fork picking up and putting down is done in reverse order to avoid deadlock
 
     mutex print_mtx; // print mutex to synchronize the output
 
+    vector<mutex> forks(NUM_PHILOSOPHERS);
+
     // Create philosopher threads
     vector<thread> philosophers;
     for (size_t i = 0; i < NUM_PHILOSOPHERS; ++i) {
-        philosophers.emplace_back(philosopher, i, forks, ref(waiter), NUM_PHILOSOPHERS, ref(print_mtx));
+        philosophers.emplace_back(philosopher, i, forks.data(), ref(waiter), NUM_PHILOSOPHERS, ref(print_mtx));
     }
 
     for (auto& philosopher : philosophers) {

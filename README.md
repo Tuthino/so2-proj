@@ -27,3 +27,10 @@ To prevent race conditions, forks and printing are mutexes and they are guarded 
 To help with starving prevention in the branch [prevent-starving] there is a simple FIFO queue added,
 to make sure that philosophers are served in the order that they requested for eating.
 
+### How to run the program
+There is a makefile that compiles the program using c++17.
+To compile:
+```make```
+
+To run the program:
+`./main`

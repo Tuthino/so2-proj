@@ -4,6 +4,7 @@
 #include <vector>
 #include <chrono>
 #include <random>
+#include <queue>
 #include <condition_variable>
 
 using namespace std;
@@ -11,24 +12,28 @@ using namespace std;
 // Semaphore acting as waiter
 class Semaphore {
     public:
-        Semaphore(int count = 0) : count(count) {}
+        Semaphore(size_t count = 0) : count(count),next_ticket(0), now_serving(0) {}
 
         void wait(){
             unique_lock<mutex> lock(mtx);
-            cv.wait(lock, [this] { return count > 0; });
+            size_t ticket = next_ticket++;
+            waiting_queue.push(ticket);
+            cv.wait(lock, [this,ticket] { return count > 0 && waiting_queue.front() == ticket; });
+            waiting_queue.pop();
             --count;
         }
 
         void signal() {
             unique_lock<mutex> lock(mtx);
             ++count;
-            cv.notify_one();
+            cv.notify_all();
         }
 
     private:
         mutex mtx;
         condition_variable cv;
-        int count;
+        size_t count, next_ticket, now_serving;
+        queue<size_t> waiting_queue;
 }; 
 
 int random_duration(int min_ms, int max_ms) {
@@ -105,7 +110,7 @@ void philosopher(int id, mutex* forks, Semaphore& waiter, int num_philosophers, 
 //TODO: Get an input here instead of hardcoded value
 
 int main(){
-    const int NUM_PHILOSOPHERS = 5;
+    const size_t NUM_PHILOSOPHERS = 5;
     mutex forks[NUM_PHILOSOPHERS];
     Semaphore waiter(NUM_PHILOSOPHERS - 1); // Initialize semaphore with NUM_PHILOSOPHERS - 1
     // so we prevent situation where all philosophers pick up their left fork and wait for the right one
@@ -115,14 +120,14 @@ int main(){
 
     // Create philosopher threads
     vector<thread> philosophers;
-    for (int i = 0; i < NUM_PHILOSOPHERS; ++i) {
+    for (size_t i = 0; i < NUM_PHILOSOPHERS; ++i) {
         philosophers.emplace_back(philosopher, i, forks, ref(waiter), NUM_PHILOSOPHERS, ref(print_mtx));
     }
 
     for (auto& philosopher : philosophers) {
         philosopher.join();
     }
-
-    return 0;
-    // main thread here
+    // Because the philosophers are in an infinite loop, we never actually reach here, but .join() prevents
+    // the main thread from exiting before the philosopher threads
+    return 0;   
 }
